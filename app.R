@@ -236,19 +236,28 @@ server <- function(input, output, session) {
       return(as.character(val))
     }
 
+    type_choices <- c("Preliminary" = "1", "Categorical" = "2", "Dismissed" = "3")
+    type_choices <- c("Select..." = "", type_choices)
+
+    grad_choices <- c("2025" = "3", "2026" = "4", "2027" = "5", "2028" = "6", "2029" = "7")
+    grad_choices <- c("Select..." = "", grad_choices)
+
+    deg_choices <- c("US MD" = "1", "US DO" = "2", "US IMG" = "3", "IMG" = "4")
+    deg_choices <- c("Select..." = "", deg_choices)
+
     tagList(
       textInput("last_name", "Last Name", value = safe_val("last_name")),
       textInput("first_name", "First Name", value = safe_val("first_name")),
       selectInput("type", "Type",
-                  choices = c("" = "", "Preliminary" = "1", "Categorical" = "2", "Dismissed" = "3"),
+                  choices = type_choices,
                   selected = safe_val("type")),
       selectInput("grad_yr", "Graduation Year",
-                  choices = c("" = "", "2025" = "3", "2026" = "4", "2027" = "5", "2028" = "6", "2029" = "7"),
+                  choices = grad_choices,
                   selected = safe_val("grad_yr")),
       textInput("email", "Email", value = safe_val("email")),
       textInput("phone", "Phone", value = safe_val("phone")),
       selectInput("deg", "Degree Type",
-                  choices = c("" = "", "US MD" = "1", "US DO" = "2", "US IMG" = "3", "IMG" = "4"),
+                  choices = deg_choices,
                   selected = safe_val("deg"))
     )
   })
