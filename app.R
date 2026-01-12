@@ -185,46 +185,56 @@ server <- function(input, output, session) {
   output$resident_header <- renderUI({
     req(vals$selected_id, vals$data_display)
     resident <- vals$data_display %>% filter(record_id == vals$selected_id)
+    req(nrow(resident) > 0)
+    resident <- resident[1, ]
     h4(paste(resident$first_name, resident$last_name, "-", resident$type, "-", resident$grad_yr))
   })
   
   output$entry_form <- renderUI({
     req(vals$selected_id, vals$data_edit)
-    
+
     resident <- vals$data_edit %>% filter(record_id == vals$selected_id)
-    
+    req(nrow(resident) > 0)
+    resident <- resident[1, ]
+
     tagList(
-      textInput("last_name", "Last Name", value = resident$last_name),
-      textInput("first_name", "First Name", value = resident$first_name),
-      selectInput("type", "Type", 
+      textInput("last_name", "Last Name", value = ifelse(is.na(resident$last_name), "", resident$last_name)),
+      textInput("first_name", "First Name", value = ifelse(is.na(resident$first_name), "", resident$first_name)),
+      selectInput("type", "Type",
                   choices = c("" = "", "Preliminary" = "1", "Categorical" = "2", "Dismissed" = "3"),
-                  selected = resident$type),
+                  selected = ifelse(is.na(resident$type), "", resident$type)),
       selectInput("grad_yr", "Graduation Year",
                   choices = c("" = "", "2025" = "3", "2026" = "4", "2027" = "5", "2028" = "6", "2029" = "7"),
-                  selected = resident$grad_yr),
-      textInput("email", "Email", value = resident$email),
-      textInput("phone", "Phone", value = resident$phone),
+                  selected = ifelse(is.na(resident$grad_yr), "", resident$grad_yr)),
+      textInput("email", "Email", value = ifelse(is.na(resident$email), "", resident$email)),
+      textInput("phone", "Phone", value = ifelse(is.na(resident$phone), "", resident$phone)),
       selectInput("deg", "Degree Type",
                   choices = c("" = "", "US MD" = "1", "US DO" = "2", "US IMG" = "3", "IMG" = "4"),
-                  selected = resident$deg)
+                  selected = ifelse(is.na(resident$deg), "", resident$deg))
     )
   })
   
   do_save <- function() {
     req(vals$selected_id)
-    
+
+    # Helper function to convert empty strings to NA
+    na_if_empty <- function(x) {
+      if (is.null(x) || length(x) == 0 || x == "") return(NA_character_)
+      return(x)
+    }
+
     data_to_save <- data.frame(
       record_id = vals$selected_id,
-      last_name = input$last_name,
-      first_name = input$first_name,
-      type = input$type,
-      grad_yr = input$grad_yr,
-      email = input$email,
-      phone = input$phone,
-      deg = input$deg,
+      last_name = na_if_empty(input$last_name),
+      first_name = na_if_empty(input$first_name),
+      type = na_if_empty(input$type),
+      grad_yr = na_if_empty(input$grad_yr),
+      email = na_if_empty(input$email),
+      phone = na_if_empty(input$phone),
+      deg = na_if_empty(input$deg),
       stringsAsFactors = FALSE
     )
-    
+
     success <- save_data(data_to_save)
     
     if (success) {
