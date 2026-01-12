@@ -1,0 +1,24 @@
+# R Package Requirements for REDCap Data Entry App
+
+# Core Shiny packages
+shiny         # >= 1.7.0
+shinydashboard # >= 0.7.0
+shinyjs        # >= 2.1.0
+shinyWidgets   # >= 0.7.0
+
+# Data manipulation
+dplyr          # >= 1.0.0
+purrr          # >= 0.3.0
+tidyr          # >= 1.2.0
+
+# REDCap integration
+REDCapR        # >= 1.0.0
+
+# Data display
+DT             # >= 0.20
+
+# Optional for enhanced authentication
+# shinymanager   # >= 1.0.0
+
+# Installation command:
+# install.packages(c("shiny", "shinydashboard", "DT", "dplyr", "purrr", "tidyr", "REDCapR", "shinyjs", "shinyWidgets"))
