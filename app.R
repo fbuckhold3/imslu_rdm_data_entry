@@ -75,9 +75,16 @@ save_data <- function(data_to_save) {
 }
 
 ui <- dashboardPage(
-  dashboardHeader(title = "REDCap Data Entry"),
+  dashboardHeader(title = "IMSLU Resident Data Management Entry", titleWidth = 450),
   dashboardSidebar(
+    width = 450,
     useShinyjs(),
+    div(style = "padding: 15px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; margin: 10px;",
+        tags$strong(style = "color: #721c24;", "AUTHORIZED USE ONLY"),
+        tags$p(style = "color: #721c24; font-size: 12px; margin-top: 5px;",
+               "This system is for the exclusive use of administrators of the IMSLU Residency Program. ",
+               "Unauthorized access or use is strictly forbidden and may result in disciplinary action and/or legal prosecution.")
+    ),
     passwordInput("password", "Password"),
     actionButton("login_btn", "Login", class = "btn-primary"),
     hidden(
