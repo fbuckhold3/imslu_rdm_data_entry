@@ -281,6 +281,26 @@ server <- function(input, output, session) {
       selectInput("grad_yr", "Graduation Year", choices = grad_choices, selected = safe_val("grad_yr")),
       textInput("dob", "Date of Birth (MM/DD/YYYY)", value = safe_val("dob")),
       selectInput("gender", "Gender", choices = gender_choices, selected = safe_val("gender")),
+
+      # Race/Ethnicity checkboxes
+      div(
+        strong("Race / Ethnicity (check all that apply)"),
+        checkboxInput("race_ethn___1", "American Indian or Alaska Native",
+                      value = safe_val("race_ethn___1") == "1"),
+        checkboxInput("race_ethn___2", "Asian",
+                      value = safe_val("race_ethn___2") == "1"),
+        checkboxInput("race_ethn___3", "Black or African American",
+                      value = safe_val("race_ethn___3") == "1"),
+        checkboxInput("race_ethn___4", "Hispanic, Latino, or of Spanish Origin",
+                      value = safe_val("race_ethn___4") == "1"),
+        checkboxInput("race_ethn___5", "Native Hawaiian or Other Pacific Islander",
+                      value = safe_val("race_ethn___5") == "1"),
+        checkboxInput("race_ethn___6", "White",
+                      value = safe_val("race_ethn___6") == "1"),
+        checkboxInput("race_ethn___7", "Other / Unknown",
+                      value = safe_val("race_ethn___7") == "1")
+      ),
+
       textInput("phone", "Phone", value = safe_val("phone")),
       textInput("email", "Email", value = safe_val("email")),
       selectInput("deg", "Degree Type", choices = deg_choices, selected = safe_val("deg")),
@@ -290,6 +310,13 @@ server <- function(input, output, session) {
       selectInput("usmle_step1_failure", "USMLE Step 1 Failure", choices = yesno_choices, selected = safe_val("usmle_step1_failure")),
       selectInput("usmle_step2_failure", "USMLE Step 2 Failure", choices = yesno_choices, selected = safe_val("usmle_step2_failure")),
       textInput("usmle_step2_score", "USMLE Step 2 Score", value = safe_val("usmle_step2_score")),
+
+      # Show message if s_e_step3 is Yes
+      if (!is.null(res$s_e_step3) && !is.na(res$s_e_step3) && res$s_e_step3 == "1") {
+        div(class = "alert alert-info", style = "margin: 10px 0;",
+            strong("Resident indicated that they completed Step 3"))
+      },
+
       selectInput("step3", "USMLE and/or COMLEX Step 3 Passed?", choices = yesno_choices, selected = safe_val("step3")),
       selectInput("usmle_step3_failure", "USMLE Step 3 Failure", choices = yesno_choices, selected = safe_val("usmle_step3_failure")),
       textInput("usmle_step3_score", "USMLE Step 3 Score", value = safe_val("usmle_step3_score")),
@@ -332,8 +359,11 @@ server <- function(input, output, session) {
       selectInput("res_alumni_academic", "Academic Medicine", choices = yesno_choices, selected = safe_val("res_alumni_academic")),
       selectInput("ssm", "SSM?", choices = yesno_choices, selected = safe_val("ssm")),
       textInput("mo_prac", "Practice in MO?", value = safe_val("mo_prac")),
+      selectInput("rural", "Practice in Rural Setting", choices = yesno_choices, selected = safe_val("rural")),
+      selectInput("und_urban", "Practice in Underserved Urban Setting?", choices = yesno_choices, selected = safe_val("und_urban")),
       selectInput("grad_spec", "Specialty", choices = spec_choices, selected = safe_val("grad_spec")),
       selectInput("chief", "Chief Resident?", choices = yesno_choices, selected = safe_val("chief")),
+      selectInput("im_practice", "Practicing in IM?", choices = yesno_choices, selected = safe_val("im_practice")),
       textInput("grad_email", "Graduate Email", value = safe_val("grad_email")),
       textInput("grad_phone", "Graduate Phone", value = safe_val("grad_phone"))
     )
@@ -358,6 +388,13 @@ server <- function(input, output, session) {
       grad_yr = na_if_empty(input$grad_yr),
       dob = na_if_empty(input$dob),
       gender = na_if_empty(input$gender),
+      race_ethn___1 = if (input$race_ethn___1) "1" else "0",
+      race_ethn___2 = if (input$race_ethn___2) "1" else "0",
+      race_ethn___3 = if (input$race_ethn___3) "1" else "0",
+      race_ethn___4 = if (input$race_ethn___4) "1" else "0",
+      race_ethn___5 = if (input$race_ethn___5) "1" else "0",
+      race_ethn___6 = if (input$race_ethn___6) "1" else "0",
+      race_ethn___7 = if (input$race_ethn___7) "1" else "0",
       phone = na_if_empty(input$phone),
       email = na_if_empty(input$email),
       deg = na_if_empty(input$deg),
@@ -391,8 +428,11 @@ server <- function(input, output, session) {
       res_alumni_academic = na_if_empty(input$res_alumni_academic),
       ssm = na_if_empty(input$ssm),
       mo_prac = na_if_empty(input$mo_prac),
+      rural = na_if_empty(input$rural),
+      und_urban = na_if_empty(input$und_urban),
       grad_spec = na_if_empty(input$grad_spec),
       chief = na_if_empty(input$chief),
+      im_practice = na_if_empty(input$im_practice),
       grad_email = na_if_empty(input$grad_email),
       grad_phone = na_if_empty(input$grad_phone),
       stringsAsFactors = FALSE
