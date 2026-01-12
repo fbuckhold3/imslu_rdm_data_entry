@@ -14,7 +14,9 @@ APP_PASSWORD <- Sys.getenv("APP_PASSWORD", "changeme123")
 
 get_data <- function(use_labels = TRUE) {
   label_mode <- if (use_labels) "label" else "raw"
-  result <- tryCatch({
+
+  # Pull resident_data form
+  result_resident <- tryCatch({
     REDCapR::redcap_read_oneshot(
       redcap_uri = REDCAP_URL,
       token = REDCAP_TOKEN,
@@ -23,11 +25,37 @@ get_data <- function(use_labels = TRUE) {
       col_types = readr::cols(.default = readr::col_character())
     )
   }, error = function(e) {
-    message("Error reading from REDCap: ", e$message)
+    message("Error reading resident_data from REDCap: ", e$message)
     return(list(success = FALSE, data = NULL))
   })
 
-  if (result$success) return(result$data)
+  # Pull s_e_step3 field from s_eval form
+  result_step3 <- tryCatch({
+    REDCapR::redcap_read_oneshot(
+      redcap_uri = REDCAP_URL,
+      token = REDCAP_TOKEN,
+      fields = c("record_id", "s_e_step3"),
+      raw_or_label = label_mode,
+      col_types = readr::cols(.default = readr::col_character())
+    )
+  }, error = function(e) {
+    message("Error reading s_e_step3 from REDCap: ", e$message)
+    return(list(success = FALSE, data = NULL))
+  })
+
+  # Merge the data if both succeeded
+  if (result_resident$success && result_step3$success) {
+    merged_data <- dplyr::left_join(
+      result_resident$data,
+      result_step3$data,
+      by = "record_id"
+    )
+    return(merged_data)
+  } else if (result_resident$success) {
+    # If step3 failed, just return resident data
+    return(result_resident$data)
+  }
+
   return(NULL)
 }
 
