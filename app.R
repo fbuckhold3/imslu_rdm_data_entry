@@ -14,23 +14,35 @@ APP_PASSWORD <- Sys.getenv("APP_PASSWORD", "changeme123")
 
 get_data <- function(use_labels = TRUE) {
   label_mode <- if (use_labels) "label" else "raw"
-  result <- REDCapR::redcap_read_oneshot(
-    redcap_uri = REDCAP_URL,
-    token = REDCAP_TOKEN,
-    forms = c("resident_data"),
-    raw_or_label = label_mode,
-    col_types = readr::cols(.default = readr::col_character())
-  )
+  result <- tryCatch({
+    REDCapR::redcap_read_oneshot(
+      redcap_uri = REDCAP_URL,
+      token = REDCAP_TOKEN,
+      forms = c("resident_data"),
+      raw_or_label = label_mode,
+      col_types = readr::cols(.default = readr::col_character())
+    )
+  }, error = function(e) {
+    message("Error reading from REDCap: ", e$message)
+    return(list(success = FALSE, data = NULL))
+  })
+
   if (result$success) return(result$data)
   return(NULL)
 }
 
 save_data <- function(data_to_save) {
-  result <- REDCapR::redcap_write_oneshot(
-    ds = data_to_save,
-    redcap_uri = REDCAP_URL,
-    token = REDCAP_TOKEN
-  )
+  result <- tryCatch({
+    REDCapR::redcap_write_oneshot(
+      ds = data_to_save,
+      redcap_uri = REDCAP_URL,
+      token = REDCAP_TOKEN
+    )
+  }, error = function(e) {
+    message("Error writing to REDCap: ", e$message)
+    return(list(success = FALSE))
+  })
+
   return(result$success)
 }
 
@@ -83,7 +95,7 @@ ui <- dashboardPage(
 )
 
 server <- function(input, output, session) {
-  
+
   vals <- reactiveValues(
     data_display = NULL,
     data_edit = NULL,
@@ -91,61 +103,71 @@ server <- function(input, output, session) {
     selected_id = NULL,
     selected_index = NULL
   )
-  
+
   observeEvent(input$login_btn, {
+    req(input$password)
     if (input$password == APP_PASSWORD) {
       show("menu")
       show("content")
-      
+
       showNotification("Loading data...", type = "message")
       vals$data_display <- get_data(use_labels = TRUE)
       vals$data_edit <- get_data(use_labels = FALSE)
-      
-      if (!is.null(vals$data_display)) {
+
+      if (!is.null(vals$data_display) && nrow(vals$data_display) > 0) {
         grad_years <- sort(unique(vals$data_display$grad_yr), decreasing = TRUE)
+        grad_years <- grad_years[!is.na(grad_years)]
         updateSelectInput(session, "grad_filter", choices = c("All" = "", grad_years))
-        
+
         types <- unique(vals$data_display$type)
+        types <- types[!is.na(types)]
         updateSelectInput(session, "type_filter", choices = c("All" = "", types))
-        
+
         showNotification("Loaded successfully!", type = "message")
+      } else {
+        showNotification("No data loaded or data is empty", type = "warning")
       }
     } else {
       showNotification("Invalid password", type = "error")
     }
   })
-  
+
   observeEvent(input$refresh_btn, {
     vals$data_display <- get_data(use_labels = TRUE)
     vals$data_edit <- get_data(use_labels = FALSE)
     showNotification("Refreshed", type = "message")
   })
-  
+
   get_filtered <- reactive({
     req(vals$data_display)
     data <- vals$data_display
-    
-    if (!is.null(input$grad_filter) && input$grad_filter != "") {
+
+    if (!is.null(input$grad_filter) && nchar(input$grad_filter) > 0) {
       data <- data %>% filter(grad_yr == input$grad_filter)
     }
-    
-    if (!is.null(input$type_filter) && input$type_filter != "") {
+
+    if (!is.null(input$type_filter) && nchar(input$type_filter) > 0) {
       data <- data %>% filter(type == input$type_filter)
     }
-    
-    if (!is.null(input$name_search) && input$name_search != "") {
+
+    if (!is.null(input$name_search) && nchar(input$name_search) > 0) {
+      search_term <- input$name_search
       data <- data %>% filter(
-        grepl(input$name_search, last_name, ignore.case = TRUE) |
-        grepl(input$name_search, first_name, ignore.case = TRUE)
+        grepl(search_term, last_name, ignore.case = TRUE) |
+        grepl(search_term, first_name, ignore.case = TRUE)
       )
     }
-    
-    vals$filtered <- data$record_id
-    
+
+    if (nrow(data) > 0) {
+      vals$filtered <- data$record_id
+    } else {
+      vals$filtered <- character(0)
+    }
+
     cols <- c("record_id", "last_name", "first_name", "type", "grad_yr", "email")
     data %>% select(any_of(cols))
   })
-  
+
   output$resident_table <- renderDT({
     datatable(
       get_filtered(),
@@ -154,14 +176,16 @@ server <- function(input, output, session) {
       rownames = FALSE
     )
   })
-  
+
   observeEvent(input$resident_table_rows_selected, {
     req(vals$filtered)
     idx <- input$resident_table_rows_selected
-    vals$selected_id <- vals$filtered[idx]
-    vals$selected_index <- idx
+    if (length(idx) > 0 && idx <= length(vals$filtered)) {
+      vals$selected_id <- vals$filtered[idx]
+      vals$selected_index <- idx
+    }
   })
-  
+
   observeEvent(input$prev_btn, {
     req(vals$selected_index, vals$filtered)
     if (vals$selected_index > 1) {
@@ -171,7 +195,7 @@ server <- function(input, output, session) {
       dataTableProxy("resident_table") %>% selectRows(new_idx)
     }
   })
-  
+
   observeEvent(input$next_btn, {
     req(vals$selected_index, vals$filtered)
     if (vals$selected_index < length(vals$filtered)) {
@@ -181,50 +205,66 @@ server <- function(input, output, session) {
       dataTableProxy("resident_table") %>% selectRows(new_idx)
     }
   })
-  
+
   output$resident_header <- renderUI({
     req(vals$selected_id, vals$data_display)
     resident <- vals$data_display %>% filter(record_id == vals$selected_id)
     req(nrow(resident) > 0)
-    resident <- resident[1, ]
-    h4(paste(resident$first_name, resident$last_name, "-", resident$type, "-", resident$grad_yr))
+
+    res <- resident[1, ]
+    fname <- if (!is.null(res$first_name) && !is.na(res$first_name)) res$first_name else ""
+    lname <- if (!is.null(res$last_name) && !is.na(res$last_name)) res$last_name else ""
+    rtype <- if (!is.null(res$type) && !is.na(res$type)) res$type else ""
+    gyear <- if (!is.null(res$grad_yr) && !is.na(res$grad_yr)) res$grad_yr else ""
+
+    h4(paste(fname, lname, "-", rtype, "-", gyear))
   })
-  
+
   output$entry_form <- renderUI({
     req(vals$selected_id, vals$data_edit)
 
     resident <- vals$data_edit %>% filter(record_id == vals$selected_id)
     req(nrow(resident) > 0)
-    resident <- resident[1, ]
+
+    res <- resident[1, ]
+
+    safe_val <- function(col_name) {
+      val <- res[[col_name]]
+      if (is.null(val) || length(val) == 0 || is.na(val)) {
+        return("")
+      }
+      return(as.character(val))
+    }
 
     tagList(
-      textInput("last_name", "Last Name", value = ifelse(is.na(resident$last_name), "", resident$last_name)),
-      textInput("first_name", "First Name", value = ifelse(is.na(resident$first_name), "", resident$first_name)),
+      textInput("last_name", "Last Name", value = safe_val("last_name")),
+      textInput("first_name", "First Name", value = safe_val("first_name")),
       selectInput("type", "Type",
                   choices = c("" = "", "Preliminary" = "1", "Categorical" = "2", "Dismissed" = "3"),
-                  selected = ifelse(is.na(resident$type), "", resident$type)),
+                  selected = safe_val("type")),
       selectInput("grad_yr", "Graduation Year",
                   choices = c("" = "", "2025" = "3", "2026" = "4", "2027" = "5", "2028" = "6", "2029" = "7"),
-                  selected = ifelse(is.na(resident$grad_yr), "", resident$grad_yr)),
-      textInput("email", "Email", value = ifelse(is.na(resident$email), "", resident$email)),
-      textInput("phone", "Phone", value = ifelse(is.na(resident$phone), "", resident$phone)),
+                  selected = safe_val("grad_yr")),
+      textInput("email", "Email", value = safe_val("email")),
+      textInput("phone", "Phone", value = safe_val("phone")),
       selectInput("deg", "Degree Type",
                   choices = c("" = "", "US MD" = "1", "US DO" = "2", "US IMG" = "3", "IMG" = "4"),
-                  selected = ifelse(is.na(resident$deg), "", resident$deg))
+                  selected = safe_val("deg"))
     )
   })
-  
+
   do_save <- function() {
     req(vals$selected_id)
 
-    # Helper function to convert empty strings to NA
     na_if_empty <- function(x) {
-      if (is.null(x) || length(x) == 0 || x == "") return(NA_character_)
-      return(x)
+      if (is.null(x) || length(x) == 0 || nchar(as.character(x)) == 0) {
+        return(NA_character_)
+      }
+      return(as.character(x))
     }
 
     data_to_save <- data.frame(
-      record_id = vals$selected_id,
+      record_id = as.character(vals$selected_id),
       last_name = na_if_empty(input$last_name),
       first_name = na_if_empty(input$first_name),
       type = na_if_empty(input$type),
@@ -236,7 +276,7 @@ server <- function(input, output, session) {
     )
 
     success <- save_data(data_to_save)
-    
+
     if (success) {
       vals$data_display <- get_data(use_labels = TRUE)
       vals$data_edit <- get_data(use_labels = FALSE)
@@ -251,14 +291,16 @@ server <- function(input, output, session) {
       return(FALSE)
     }
   }
-  
+
   observeEvent(input$save_btn, {
     showNotification("Saving...", type = "message")
     if (do_save()) {
       showNotification("Saved!", type = "message")
+    } else {
+      showNotification("Save failed!", type = "error")
     }
   })
-  
+
   observeEvent(input$save_next_btn, {
     showNotification("Saving...", type = "message")
     if (do_save()) {
