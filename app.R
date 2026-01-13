@@ -45,9 +45,13 @@ get_data <- function(use_labels = TRUE) {
 
   # Merge the data if both succeeded
   if (result_resident$success && result_step3$success) {
+    # For s_e_step3, keep only the first occurrence per record_id to avoid duplicates
+    step3_unique <- result_step3$data %>%
+      distinct(record_id, .keep_all = TRUE)
+
     merged_data <- dplyr::left_join(
       result_resident$data,
-      result_step3$data,
+      step3_unique,
       by = "record_id"
     )
     return(merged_data)
@@ -273,7 +277,13 @@ server <- function(input, output, session) {
       if (is.null(val) || length(val) == 0 || is.na(val)) {
         return("")
       }
-      return(as.character(val))
+      # Trim whitespace and convert to character
+      val_clean <- trimws(as.character(val))
+      # Debug output for grad_yr
+      if (col_name == "grad_yr" && nchar(val_clean) > 0) {
+        message("DEBUG: grad_yr raw value = '", val_clean, "'")
+      }
+      return(val_clean)
     }
 
     # Define choice lists
