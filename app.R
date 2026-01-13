@@ -348,17 +348,12 @@ server <- function(input, output, session) {
 
       selectInput("deg", "Degree Type", choices = deg_choices, selected = safe_val("deg")),
 
-      # Show phone and email only for current residents (not archived and not past graduates)
+      # Show phone and email only for non-archived residents
       if (is.null(res$res_archive) || is.na(res$res_archive) || res$res_archive != "1") {
-        grad_year_num <- as.numeric(safe_val("grad_yr"))
-        show_contact <- is.na(grad_year_num) || grad_year_num >= 3  # 3 = 2025
-
-        if (show_contact) {
-          tagList(
-            textInput("phone", "Phone", value = safe_val("phone")),
-            textInput("email", "Email", value = safe_val("email"))
-          )
-        }
+        tagList(
+          textInput("phone", "Phone", value = safe_val("phone")),
+          textInput("email", "Email", value = safe_val("email"))
+        )
       },
 
       hr(),
@@ -394,23 +389,17 @@ server <- function(input, output, session) {
       textInput("npi", "NPI", value = safe_val("npi")),
       textInput("mo_lic", "MO License ##", value = safe_val("mo_lic")),
 
-      # Conditionally show Coaching & Review section (hide for archived or past graduates)
-      # Check if archived or if grad year is before 2025 (past graduate)
+      # Conditionally show Coaching & Review section (hide for archived residents)
       if (is.null(res$res_archive) || is.na(res$res_archive) || res$res_archive != "1") {
-        grad_year_num <- as.numeric(safe_val("grad_yr"))
-        show_coaching <- is.na(grad_year_num) || grad_year_num >= 3  # 3 = 2025
-
-        if (show_coaching) {
-          tagList(
-            hr(),
-            h5(strong("Coaching & Review")),
-            selectInput("coach", "Resident Coach", choices = coach_choices, selected = safe_val("coach")),
-            textInput("coach_email", "Coach Email", value = safe_val("coach_email")),
-            textInput("second_rev", "Second Reviewer", value = safe_val("second_rev")),
-            textInput("sec_email", "Second Email", value = safe_val("sec_email")),
-            textInput("access_code", "Access Code", value = safe_val("access_code"))
-          )
-        }
+        tagList(
+          hr(),
+          h5(strong("Coaching & Review")),
+          selectInput("coach", "Resident Coach", choices = coach_choices, selected = safe_val("coach")),
+          textInput("coach_email", "Coach Email", value = safe_val("coach_email")),
+          textInput("second_rev", "Second Reviewer", value = safe_val("second_rev")),
+          textInput("sec_email", "Second Email", value = safe_val("sec_email")),
+          textInput("access_code", "Access Code", value = safe_val("access_code"))
+        )
       },
 
       hr(),
