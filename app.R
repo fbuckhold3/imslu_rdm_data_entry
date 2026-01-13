@@ -346,9 +346,20 @@ server <- function(input, output, session) {
                       value = safe_val("race_ethn___7") == "1")
       ),
 
-      textInput("phone", "Phone", value = safe_val("phone")),
-      textInput("email", "Email", value = safe_val("email")),
       selectInput("deg", "Degree Type", choices = deg_choices, selected = safe_val("deg")),
+
+      # Show phone and email only for current residents (not archived and not past graduates)
+      if (is.null(res$res_archive) || is.na(res$res_archive) || res$res_archive != "1") {
+        grad_year_num <- as.numeric(safe_val("grad_yr"))
+        show_contact <- is.na(grad_year_num) || grad_year_num >= 3  # 3 = 2025
+
+        if (show_contact) {
+          tagList(
+            textInput("phone", "Phone", value = safe_val("phone")),
+            textInput("email", "Email", value = safe_val("email"))
+          )
+        }
+      },
 
       hr(),
       h5(strong("USMLE Scores")),
@@ -461,8 +472,8 @@ server <- function(input, output, session) {
       race_ethn___5 = if (!is.null(input$race_ethn___5) && input$race_ethn___5) "1" else "0",
       race_ethn___6 = if (!is.null(input$race_ethn___6) && input$race_ethn___6) "1" else "0",
       race_ethn___7 = if (!is.null(input$race_ethn___7) && input$race_ethn___7) "1" else "0",
-      phone = na_if_empty(input$phone),
-      email = na_if_empty(input$email),
+      phone = safe_input("phone"),
+      email = safe_input("email"),
       deg = na_if_empty(input$deg),
       usmle_step1_failure = na_if_empty(input$usmle_step1_failure),
       usmle_step2_failure = na_if_empty(input$usmle_step2_failure),
