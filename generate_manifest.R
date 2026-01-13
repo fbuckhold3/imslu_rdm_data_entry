@@ -4,7 +4,7 @@
 library(rsconnect)
 
 # Generate manifest file
-writeManifest(appDir = ".", appFiles = c("app.R", "data_dict.csv"))
+rsconnect::writeManifest(appDir = ".")
 
 cat("manifest.json has been generated successfully!\n")
 cat("\nTo deploy to Posit Connect:\n")
