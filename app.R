@@ -179,6 +179,9 @@ server <- function(input, output, session) {
     req(vals$data_display)
     data <- vals$data_display
 
+    # Remove duplicate records - keep only unique record_ids
+    data <- data %>% distinct(record_id, .keep_all = TRUE)
+
     if (!is.null(input$grad_filter) && nchar(input$grad_filter) > 0) {
       data <- data %>% filter(grad_yr == input$grad_filter)
     }
@@ -277,9 +280,16 @@ server <- function(input, output, session) {
     type_choices <- c("Preliminary" = "1", "Categorical" = "2", "Dismissed" = "3")
     type_choices <- c("Select..." = "", type_choices)
 
-    grad_choices <- c("2023" = "1", "2024" = "2", "2025" = "3", "2026" = "4", "2027" = "5",
-                      "2028" = "6", "2029" = "7", "2030" = "8", "2031" = "9", "2032" = "10",
-                      "2033" = "11", "2034" = "12", "2035" = "13")
+    # All graduation years from data dictionary (codes 1-36 = years 2000-2035)
+    grad_choices <- c(
+      "2000" = "14", "2001" = "15", "2002" = "16", "2003" = "17", "2004" = "18", "2005" = "19",
+      "2006" = "20", "2007" = "21", "2008" = "22", "2009" = "23", "2010" = "24", "2011" = "25",
+      "2012" = "26", "2013" = "27", "2014" = "28", "2015" = "29", "2016" = "30", "2017" = "31",
+      "2018" = "32", "2019" = "33", "2020" = "34", "2021" = "35", "2022" = "36",
+      "2023" = "1", "2024" = "2", "2025" = "3", "2026" = "4", "2027" = "5", "2028" = "6",
+      "2029" = "7", "2030" = "8", "2031" = "9", "2032" = "10", "2033" = "11", "2034" = "12",
+      "2035" = "13"
+    )
     grad_choices <- c("Select..." = "", grad_choices)
 
     deg_choices <- c("US MD" = "1", "US DO" = "2", "US IMG" = "3", "IMG" = "4")
@@ -346,10 +356,12 @@ server <- function(input, output, session) {
       selectInput("usmle_step2_failure", "USMLE Step 2 Failure", choices = yesno_choices, selected = safe_val("usmle_step2_failure")),
       textInput("usmle_step2_score", "USMLE Step 2 Score", value = safe_val("usmle_step2_score")),
 
-      # Show message if s_e_step3 is Yes
-      if (!is.null(res$s_e_step3) && !is.na(res$s_e_step3) && res$s_e_step3 == "1") {
+      # Show message if s_e_step3 is Yes (check for both raw "1" and labeled "Yes")
+      if (!is.null(res$s_e_step3) && !is.na(res$s_e_step3) &&
+          (res$s_e_step3 == "1" || res$s_e_step3 == "Yes")) {
         div(class = "alert alert-info", style = "margin: 10px 0;",
-            strong("Resident indicated that they completed Step 3"))
+            icon("info-circle"),
+            strong(" Resident indicated that they completed Step 3"))
       },
 
       selectInput("step3", "USMLE and/or COMLEX Step 3 Passed?", choices = yesno_choices, selected = safe_val("step3")),
@@ -371,13 +383,24 @@ server <- function(input, output, session) {
       textInput("npi", "NPI", value = safe_val("npi")),
       textInput("mo_lic", "MO License ##", value = safe_val("mo_lic")),
 
-      hr(),
-      h5(strong("Coaching & Review")),
-      selectInput("coach", "Resident Coach", choices = coach_choices, selected = safe_val("coach")),
-      textInput("coach_email", "Coach Email", value = safe_val("coach_email")),
-      textInput("second_rev", "Second Reviewer", value = safe_val("second_rev")),
-      textInput("sec_email", "Second Email", value = safe_val("sec_email")),
-      textInput("access_code", "Access Code", value = safe_val("access_code")),
+      # Conditionally show Coaching & Review section (hide for archived or past graduates)
+      # Check if archived or if grad year is before 2025 (past graduate)
+      if (is.null(res$res_archive) || is.na(res$res_archive) || res$res_archive != "1") {
+        grad_year_num <- as.numeric(safe_val("grad_yr"))
+        show_coaching <- is.na(grad_year_num) || grad_year_num >= 3  # 3 = 2025
+
+        if (show_coaching) {
+          tagList(
+            hr(),
+            h5(strong("Coaching & Review")),
+            selectInput("coach", "Resident Coach", choices = coach_choices, selected = safe_val("coach")),
+            textInput("coach_email", "Coach Email", value = safe_val("coach_email")),
+            textInput("second_rev", "Second Reviewer", value = safe_val("second_rev")),
+            textInput("sec_email", "Second Email", value = safe_val("sec_email")),
+            textInput("access_code", "Access Code", value = safe_val("access_code"))
+          )
+        }
+      },
 
       hr(),
       h5(strong("Background & Training")),
@@ -393,7 +416,7 @@ server <- function(input, output, session) {
       textInput("res_alumni_position", "Current Position", value = safe_val("res_alumni_position")),
       selectInput("res_alumni_academic", "Academic Medicine", choices = yesno_choices, selected = safe_val("res_alumni_academic")),
       selectInput("ssm", "SSM?", choices = yesno_choices, selected = safe_val("ssm")),
-      textInput("mo_prac", "Practice in MO?", value = safe_val("mo_prac")),
+      selectInput("mo_prac", "Practice in MO?", choices = yesno_choices, selected = safe_val("mo_prac")),
       selectInput("rural", "Practice in Rural Setting", choices = yesno_choices, selected = safe_val("rural")),
       selectInput("und_urban", "Practice in Underserved Urban Setting?", choices = yesno_choices, selected = safe_val("und_urban")),
       selectInput("grad_spec", "Specialty", choices = spec_choices, selected = safe_val("grad_spec")),
@@ -414,6 +437,14 @@ server <- function(input, output, session) {
       return(as.character(x))
     }
 
+    # Helper function to safely get input value (returns NA if input doesn't exist)
+    safe_input <- function(input_name) {
+      if (!is.null(input[[input_name]])) {
+        return(na_if_empty(input[[input_name]]))
+      }
+      return(NA_character_)
+    }
+
     data_to_save <- data.frame(
       record_id = as.character(vals$selected_id),
       name = na_if_empty(input$name),
@@ -423,13 +454,13 @@ server <- function(input, output, session) {
       grad_yr = na_if_empty(input$grad_yr),
       dob = na_if_empty(input$dob),
       gender = na_if_empty(input$gender),
-      race_ethn___1 = if (input$race_ethn___1) "1" else "0",
-      race_ethn___2 = if (input$race_ethn___2) "1" else "0",
-      race_ethn___3 = if (input$race_ethn___3) "1" else "0",
-      race_ethn___4 = if (input$race_ethn___4) "1" else "0",
-      race_ethn___5 = if (input$race_ethn___5) "1" else "0",
-      race_ethn___6 = if (input$race_ethn___6) "1" else "0",
-      race_ethn___7 = if (input$race_ethn___7) "1" else "0",
+      race_ethn___1 = if (!is.null(input$race_ethn___1) && input$race_ethn___1) "1" else "0",
+      race_ethn___2 = if (!is.null(input$race_ethn___2) && input$race_ethn___2) "1" else "0",
+      race_ethn___3 = if (!is.null(input$race_ethn___3) && input$race_ethn___3) "1" else "0",
+      race_ethn___4 = if (!is.null(input$race_ethn___4) && input$race_ethn___4) "1" else "0",
+      race_ethn___5 = if (!is.null(input$race_ethn___5) && input$race_ethn___5) "1" else "0",
+      race_ethn___6 = if (!is.null(input$race_ethn___6) && input$race_ethn___6) "1" else "0",
+      race_ethn___7 = if (!is.null(input$race_ethn___7) && input$race_ethn___7) "1" else "0",
       phone = na_if_empty(input$phone),
       email = na_if_empty(input$email),
       deg = na_if_empty(input$deg),
@@ -448,11 +479,11 @@ server <- function(input, output, session) {
       abim_pass = na_if_empty(input$abim_pass),
       npi = na_if_empty(input$npi),
       mo_lic = na_if_empty(input$mo_lic),
-      coach = na_if_empty(input$coach),
-      coach_email = na_if_empty(input$coach_email),
-      second_rev = na_if_empty(input$second_rev),
-      sec_email = na_if_empty(input$sec_email),
-      access_code = na_if_empty(input$access_code),
+      coach = safe_input("coach"),
+      coach_email = safe_input("coach_email"),
+      second_rev = safe_input("second_rev"),
+      sec_email = safe_input("sec_email"),
+      access_code = safe_input("access_code"),
       hs_mo = na_if_empty(input$hs_mo),
       college_mo = na_if_empty(input$college_mo),
       med_mo = na_if_empty(input$med_mo),
