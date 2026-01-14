@@ -283,6 +283,16 @@ server <- function(input, output, session) {
       if (col_name == "grad_yr" && nchar(val_clean) > 0) {
         message("DEBUG: grad_yr raw value = '", val_clean, "'")
       }
+
+      # Convert date fields from YYYY-MM-DD to MM/DD/YYYY for display
+      if (col_name == "dob" && nchar(val_clean) > 0 && grepl("^\\d{4}-\\d{2}-\\d{2}$", val_clean)) {
+        parts <- strsplit(val_clean, "-")[[1]]
+        if (length(parts) == 3) {
+          # Convert YYYY-MM-DD to MM/DD/YYYY
+          return(paste0(as.integer(parts[2]), "/", as.integer(parts[3]), "/", parts[1]))
+        }
+      }
+
       return(val_clean)
     }
 
@@ -447,6 +457,54 @@ server <- function(input, output, session) {
       return(as.character(x))
     }
 
+    # Helper function to convert date from MM/DD/YYYY to YYYY-MM-DD for REDCap
+    convert_date_for_redcap <- function(date_str) {
+      if (is.null(date_str) || length(date_str) == 0 || nchar(as.character(date_str)) == 0) {
+        return(NA_character_)
+      }
+
+      date_str <- trimws(as.character(date_str))
+
+      # Try to parse the date in various formats
+      parsed_date <- tryCatch({
+        # Try MM/DD/YYYY or M/D/YYYY or MM/DD/YY
+        if (grepl("/", date_str)) {
+          parts <- strsplit(date_str, "/")[[1]]
+          if (length(parts) == 3) {
+            month <- sprintf("%02d", as.integer(parts[1]))
+            day <- sprintf("%02d", as.integer(parts[2]))
+            year <- parts[3]
+
+            # Handle 2-digit years
+            if (nchar(year) == 2) {
+              year_int <- as.integer(year)
+              # If year is 00-50, assume 2000-2050, otherwise 1950-1999
+              if (year_int <= 50) {
+                year <- paste0("20", year)
+              } else {
+                year <- paste0("19", year)
+              }
+            }
+
+            # Return in YYYY-MM-DD format
+            return(paste0(year, "-", month, "-", day))
+          }
+        }
+
+        # If already in YYYY-MM-DD format, return as is
+        if (grepl("^\\d{4}-\\d{2}-\\d{2}$", date_str)) {
+          return(date_str)
+        }
+
+        # If we can't parse it, return NA
+        return(NA_character_)
+      }, error = function(e) {
+        return(NA_character_)
+      })
+
+      return(parsed_date)
+    }
+
     # Helper function to safely get input value (returns NA if input doesn't exist)
     safe_input <- function(input_name) {
       if (!is.null(input[[input_name]])) {
@@ -462,7 +520,7 @@ server <- function(input, output, session) {
       first_name = na_if_empty(input$first_name),
       type = na_if_empty(input$type),
       grad_yr = na_if_empty(input$grad_yr),
-      dob = na_if_empty(input$dob),
+      dob = convert_date_for_redcap(input$dob),
       gender = na_if_empty(input$gender),
       race_ethn___1 = if (!is.null(input$race_ethn___1) && input$race_ethn___1) "1" else "0",
       race_ethn___2 = if (!is.null(input$race_ethn___2) && input$race_ethn___2) "1" else "0",
